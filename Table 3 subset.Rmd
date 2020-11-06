@@ -1,0 +1,666 @@
+---
+title: "Table 3 subset"
+author: "iaosui"
+date: "Jan 2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(data.table)
+library(GGally)
+library(gridExtra)
+library(grid)
+library(latex2exp)
+library(mice)
+library(weights)
+library(scales)
+library(stats)
+library(knitr)
+library(survey)
+library(splines)
+library(plotly)
+
+options(scipen=999)
+
+state.info = read.csv("D:/galit/11th Three Model improve/state_code.csv")
+
+other.factor = read.csv("D:/galit/12th Sleep Duration/other_factor.csv") %>%
+  left_join(state.info%>%select(gestfips,longitude), by = "gestfips") %>%
+  mutate(education.new = ifelse(education %in% c("College graduate",
+                                                 "Master's degree or higher"),
+                            "College graduate",
+                            "Less than high school"),
+         education.new = ifelse(education == "High school graduate",
+                                "High school graduate", education.new),
+         education.new = as.factor(education.new))
+
+
+
+
+# primary.sleep = read.csv("D:/galit/10th Report_Three Model/primary_sleep_timing and duration.csv") %>%
+primary.sleep = read.csv("D:/galit/18th Debug/primary_sleep_timing and duration.debug.csv") %>%
+  mutate(start = as.POSIXct(start),
+         stop = as.POSIXct(stop),
+         start = start +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         stop = stop +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         duration = as.numeric(stop - start, units = "mins"))
+
+# gap_total = read.csv("D:/galit/10th Report_Three Model/gap_total.csv") %>%
+gap_total = read.csv("D:/galit/18th Debug/gap_total.debug.csv") %>%
+  select(tucaseid, gap_duration, gap_num)
+
+
+# setwd("D:/galit/8th Report_regression for tendency/")
+# act_dat = read.csv("act_duration.2hrs.spread.csv")
+
+# setwd("D:/galit/11th Three Model improve/")
+# act_dat = read.csv("act_duration.1hr.csv")
+act_dat = read.csv("D:/galit/18th Debug/act_duration.1hr.debug.csv")
+
+predictors = act_dat %>%
+  select(tucaseid, X110101)
+
+
+# WASO = read.csv("D:/galit/17th Gap outliers + Weight adjustment/Gap_activity.csv") %>%
+WASO = read.csv("D:/galit/18th Debug/Gap_activity.debug.csv") %>%
+  mutate(start = as.POSIXct(start, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         stop = as.POSIXct(stop, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         start_sleep = as.POSIXct(start_sleep, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         stop_sleep = as.POSIXct(stop_sleep, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         start = start +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         stop = stop +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         duration = as.numeric(stop - start, units = "mins"),
+         start_sleep = start_sleep +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         stop_sleep = stop_sleep +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         sleep_duration = as.numeric(stop_sleep - start_sleep,
+                                     units = "mins")) %>%  
+  # mutate(start = as.POSIXct(start, tryFormats = c("%m/%d/%Y %H:%M")),
+  #        stop = as.POSIXct(stop, tryFormats = c("%m/%d/%Y %H:%M")),
+  #        start_sleep = as.POSIXct(start_sleep, tryFormats = c("%m/%d/%Y %H:%M")),
+  #        stop_sleep = as.POSIXct(stop_sleep, tryFormats = c("%m/%d/%Y %H:%M")),
+  #        start = start +
+  #          as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+  #        stop = stop +
+  #          as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+  #        duration = as.numeric(stop - start, units = "mins"),
+  #        start_sleep = start_sleep +
+  #          as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+  #        stop_sleep = stop_sleep +
+  #          as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+  #        sleep_duration = as.numeric(stop_sleep - start_sleep,
+  #                                    units = "mins")) %>%
+  group_by(tucaseid) %>%
+  mutate(con_gap_30 = ifelse(gap_duration >= 30, gap_duration, 0),
+         con_gap_30 = max(con_gap_30),
+         care_children = ifelse(trcode %in% c(30101, 30301), gap_duration, 0),
+         care_children = max(care_children)) %>%
+  group_by(tucaseid, con_gap_30, care_children, sleep_duration) %>%
+  summarise(gap_max = max(gap_duration),
+            gap_duration = sum(gap_duration),
+            gap_num = sum(n())) %>%
+  select(tucaseid, con_gap_30, care_children, gap_duration, gap_max, 
+         gap_num, sleep_duration) %>%
+  ungroup()
+    
+```
+
+
+
+```{r}
+model1.data = primary.sleep %>% group_by(tucaseid) %>%
+  # filter(primary.sleep=="primary sleep") %>%
+  summarise(start = start[1], 
+            duration = duration[1],
+            stop = stop[1],
+            primary.sleep = primary.sleep[1]) %>%
+  # 1. Primary Sleep after 6 
+  # filter(start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S"))) %>%
+  left_join(predictors, by = "tucaseid") %>%
+  left_join(WASO, by = "tucaseid") %>%
+  replace(.,is.na(.),0) %>%
+  mutate(sleep_duration = (duration - gap_duration)) %>%
+  mutate(eating_ind = ifelse(X110101>0,'Eat','No Eat')) %>%
+  right_join(other.factor, by = "tucaseid") %>%
+  # replace(.,is.na(.),0) %>%
+  # 3. People recorded on Weekday
+  # filter(days == "Weekday") %>%
+  # Generating varaible race
+  mutate(race = ifelse(ptdtrace %in% c("White only","White Only"),"White only","Others"),
+         race = ifelse(ptdtrace %in% c("Black only","Black Only"),"Black only",race),
+         race = ifelse(pehspnon == "Hispanic", "Hispanic", race),
+         # race = as.factor(race),
+         employment = ifelse(telfs %in% c("Unemployed - on layoff", "Unemployed - looking"),
+                             "Unemployed","Employed"),
+         employment = ifelse(telfs == "Not in labor force",
+                            "Not in labor force",employment),
+         # employment = as.factor(employment)
+         ) %>%
+  ungroup()
+
+model1.data = model1.data %>%
+  mutate(final.weight.b = ifelse(final.weight>quantile(final.weight,0.9),
+                                 quantile(final.weight,0.9),
+                                 final.weight)) %>%
+  mutate(sleep_duration.c = ifelse(teage<18 & sleep_duration<8*60,
+                                   "short","normal"),
+         sleep_duration.c = ifelse(teage<18 & sleep_duration>10*60,
+                                   "long",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>65 & sleep_duration<7*60,
+                                   "short",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>65 & sleep_duration>8*60,
+                                   "long",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>=18 & teage<=64 & sleep_duration<7*60,
+                                   "short",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>=18 & teage<=64 & sleep_duration>9*60,
+                                   "long",sleep_duration.c),
+         sleep_duration.c = as.factor(sleep_duration.c)) %>%
+  mutate(sleep_efficiency = sleep_duration/duration*100,
+         SE = ifelse(sleep_efficiency==100, 1, 0),
+         gap = ifelse(sleep_efficiency==100, 0, 1))
+
+model1.data = model1.data %>% 
+  mutate(gap_20 = ifelse(gap_duration<20,"less 20","larger and equal 20"),
+         gap_20 = ifelse(gap_duration==0,"No gap",gap_20),
+         gap_20 = as.factor(gap_20),
+         gap_30 = ifelse(gap_duration<30,"less 30","larger and equal 30"),
+         gap_30 = ifelse(gap_duration==0,"No gap",gap_30),
+         gap_30 = as.factor(gap_30))
+
+model1.data = model1.data %>% 
+  mutate(trchildnum = ifelse(teage < 18, trchildnum-1, trchildnum),
+         gap_remove_child = ifelse(gap_30 == "larger and equal 30" &
+                                     (gap_duration - care_children) >= 30, 1, 0),
+         child = ifelse(trchildnum > 0, "Yes", "No"))
+
+# write.csv(model1.data %>%
+#             mutate(keep = ifelse((primary.sleep=="primary sleep" &
+#                                    start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")) &
+#                                    days == "Weekday"), 1, 0)), "D:/muli.sas.csv")
+```
+
+
+
+```{r}
+# write.csv(model1.data %>%
+#             mutate(start = start -
+#                      as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+#                    stop = stop -
+#                      as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+#                    keep = ifelse((primary.sleep=="primary sleep" &
+#                                    start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")) &
+#                                    days == "Weekday"), 1, 0)),
+#           "D:/muli.sas.csv")
+
+# model1.data = read.csv("D:/muli.sas.csv") %>%
+#   mutate(start = as.POSIXct(start),
+#          stop = as.POSIXct(stop),
+#          start = start +
+#            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+#          stop = stop +
+#            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+#          keep = ifelse((primary.sleep=="primary sleep" &
+#                           start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")) &
+#                           days == "Weekday"), 1, 0))
+```
+
+
+```{r}
+model1.data = model1.data %>%
+  mutate(start.sleep.c = ifelse(start < as.POSIXct(strptime("19:00:00",format = "%H:%M:%S")),
+                                "1: 6 pm - 7 pm", 
+                                "2: 7 pm - 8 pm"),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("20:00:00",format = "%H:%M:%S")),
+                                "3: 8 pm - 9 pm", start.sleep.c),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("21:00:00",format = "%H:%M:%S")), 
+                                "4: 9 pm - 10 pm", start.sleep.c),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("22:00:00",format = "%H:%M:%S")), 
+                                "5: 10 pm - 11 pm", start.sleep.c),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("23:00:00",format = "%H:%M:%S")), 
+                                "6: 11 pm - 12 am", start.sleep.c),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("24:00:00",format = "%H:%M:%S")), 
+                                "7: 12 am - 1 am", start.sleep.c),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("24:00:00",format = "%H:%M:%S"))+60*60, 
+                                "8: 1 am - 2 am", start.sleep.c),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("24:00:00",format = "%H:%M:%S"))+2*60*60, 
+                                "9: 2 am - 3 am", start.sleep.c),
+         start.sleep.c = ifelse(start > as.POSIXct(strptime("24:00:00",format = "%H:%M:%S"))+3*60*60, 
+                                "99: 3 am - 4 am", start.sleep.c),
+         start.sleep = as.numeric(start - as.POSIXct(strptime("00:00:00",format = "%H:%M:%S")),
+                                  units = "hours"),
+         start.sleep.scale = scale(start.sleep),
+         start.sleep.center = start.sleep-24)
+
+```
+
+
+```{r}
+# Sleep Duration OVerall
+model1.data.svy = svydesign(ids = ~tucaseid,
+                         weights = ~final.weight.b,
+                         data = model1.data%>% mutate(slp = sleep_duration/60))
+model1.data.svy.sub = subset(model1.data.svy, primary.sleep=="primary sleep")
+model1.data.svy.sub = subset(model1.data.svy.sub, start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")))
+# model1.data.svy.sub = subset(model1.data.svy.sub, days == "Weekday")
+model1.data.svy.sub = subset(model1.data.svy.sub, days == "Weekday")
+model1.overall.crude = svyglm(sleep_duration ~ (eating_ind == "Eat"),
+                                 design = model1.data.svy.sub)
+print("model1.overall.crude")
+ci = summary(model1.overall.crude)$coefficient['eating_ind == "Eat"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+
+model1.overall.adjusted = svyglm(sleep_duration ~ as.character(year)  + tudiaryday + 
+                                   (trchildnum>0) + race + eating_ind + age.c + employment + 
+                                   trsppres + tesex +
+                                   education.new,
+                                 design = model1.data.svy.sub)
+print("model1.overall.adjusted")
+ci = summary(model1.overall.adjusted)$coefficient['eating_indNo Eat',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+
+# model1.overall.crude.sleeptiming = svyglm(sleep_duration ~ (eating_ind == "Eat") + start.sleep.center,
+#                                  design = model1.data.svy.sub)
+# print("model1.overall.crude.sleeptiming")
+# ci = summary(model1.overall.crude.sleeptiming)$coefficient['eating_indNo Eat',]
+# ci[1]
+# c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+# Sleep Duration for Female
+model1.data.svy.female = subset(model1.data.svy.sub, tesex == "Female")
+
+model1.female.crude = svyglm(sleep_duration ~ eating_ind,
+                                 design = model1.data.svy.female)
+print("model1.female.crude")
+ci = summary(model1.female.crude)$coefficient['eating_indNo Eat',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+
+model1.female.adjusted = svyglm(sleep_duration ~ as.character(year)  + tudiaryday + 
+                                   trsppres + (trchildnum>0) + race + eating_ind +
+                                   age.c + employment + education.new,
+                                 design = model1.data.svy.female)
+print("model1.female.adjusted")
+ci = summary(model1.female.adjusted)$coefficient['eating_indNo Eat',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+
+
+
+# Sleep Duration for Male
+model1.data.svy.male = subset(model1.data.svy.sub, tesex == "Male")
+
+model1.male.crude = svyglm(sleep_duration ~ eating_ind,
+                                 design = model1.data.svy.male)
+print("model1.male.crude")
+ci = summary(model1.male.crude)$coefficient['eating_indNo Eat',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+
+model1.male.adjusted = svyglm(sleep_duration ~ as.character(year)  + tudiaryday + 
+                                   trsppres + (trchildnum>0) + race + eating_ind +
+                                   age.c + employment + education.new,
+                                 design = model1.data.svy.male)
+print("model1.male.adjusted")
+ci = summary(model1.male.adjusted)$coefficient['eating_indNo Eat',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+
+
+```
+
+
+
+
+```{r}
+library(questionr)
+# Fragmentation Overall
+print("Overall crude")
+model3.fragment.overall.crude = svyglm((gap_30=="larger and equal 30") ~ (eating_ind=="Eat"),
+                        design = model1.data.svy.sub, family = binomial)
+
+a = odds.ratio(model3.fragment.overall.crude)
+a['eating_ind == "Eat"TRUE',1:3]
+
+print("Overall Adjust")
+model3.fragment.overall.adjusted = svyglm((gap_30=="larger and equal 30") ~ as.character(year)  + 
+                                            tudiaryday + race + (eating_ind=="Eat") + (trchildnum>0) +trsppres +
+                        age.c + employment + education.new + tesex,
+                        design = model1.data.svy.sub, family = binomial)
+
+a = odds.ratio(model3.fragment.overall.adjusted)
+a['eating_ind == "Eat"TRUE',1:3]
+
+# print("Overall Adjust add sleep timing")
+# model3.fragment.overall.crude.sleeptiming = svyglm((gap_30=="larger and equal 30") ~ 
+#                                                         (eating_ind=="Eat") + 
+#                                                         start.sleep.center,
+#                         design = model1.data.svy.sub, family = binomial)
+# 
+# a = odds.ratio(model3.fragment.overall.crude.sleeptiming)
+# 1/a['eating_indNo Eat',1:3]
+
+
+###############################################################################
+######################## Fragmentation Female ###################################
+###############################################################################
+print("Female crude")
+model3.fragment.female.crude = svyglm((gap_30=="larger and equal 30") ~ (eating_ind=="Eat"),
+                        design = model1.data.svy.female, family = binomial)
+
+a = odds.ratio(model3.fragment.female.crude)
+a['eating_ind == "Eat"TRUE',1:3]
+
+print("Female Adjust")
+#model1.data.svy.female
+model3.fragment.female.adjusted = svyglm((gap_30=="larger and equal 30") ~ as.character(year)  + 
+                                            tudiaryday + race + (eating_ind=="Eat") + (trchildnum>0) +trsppres +
+                        age.c + employment + education.new,
+                        design = model1.data.svy.female,
+                        family = binomial)
+
+a = odds.ratio(model3.fragment.female.adjusted)
+a['eating_ind == "Eat"TRUE',1:3]
+
+
+###############################################################################
+######################## Fragmentation Male ###################################
+###############################################################################
+print("Male crude")
+model3.fragment.male.crude = svyglm((gap_30=="larger and equal 30") ~ (eating_ind=="Eat"),
+                        design = model1.data.svy.male, family = binomial)
+
+a = odds.ratio(model3.fragment.male.crude)
+a['eating_ind == "Eat"TRUE',1:3]
+
+print("Male Adjust")
+# model1.data.svy.male
+model3.fragment.male.adjusted = svyglm((gap_30=="larger and equal 30") ~ as.character(year)  + 
+                                            tudiaryday + race + (eating_ind=="Eat") + (trchildnum>0) +trsppres +
+                        age.c + employment + education.new,
+                        design = model1.data.svy.male, family = binomial)
+
+a = odds.ratio(model3.fragment.male.adjusted)
+a['eating_ind == "Eat"TRUE',1:3]
+
+
+
+```
+
+
+
+```{r}
+
+# model1.data.svy.male
+model3.fragment.male.adjusted = svyglm((gap_30=="larger and equal 30") ~ as.character(year)  + 
+                                            tudiaryday + race + eating_ind + (trchildnum>0) +trsppres +
+                        age.c + employment + education.new,
+                        design = model1.data.svy.male, family = binomial)
+
+a = odds.ratio(model3.fragment.male.adjusted)
+1/a['eating_indNo Eat',1:3]
+```
+
+
+```{r}
+svyquantile(~slp, model1.data.svy.sub, c(.025,.5,.975),ci=TRUE)
+```
+
+
+
+
+
+```{r}
+crude = svyglm(sleep_duration ~ eating_ind,
+               design = model1.data.svy.sub)
+row = c("tesex", "age.c", "race", "education", "employment", "trsppres", "child")
+model1.gender = svyglm(sleep_duration ~ eating_ind + tesex,
+                       design = model1.data.svy.sub)
+model1.age = svyglm(sleep_duration ~ eating_ind + age.c,
+                       design = model1.data.svy.sub)
+model1.race = svyglm(sleep_duration ~ eating_ind + race,
+                       design = model1.data.svy.sub)
+model1.education = svyglm(sleep_duration ~ eating_ind + education,
+                       design = model1.data.svy.sub)
+model1.employment = svyglm(sleep_duration ~ eating_ind + employment,
+                       design = model1.data.svy.sub)
+model1.trsppres = svyglm(sleep_duration ~ eating_ind + trsppres,
+                       design = model1.data.svy.sub)
+model1.child = svyglm(sleep_duration ~ eating_ind + child,
+                       design = model1.data.svy.sub)
+
+
+anova(crude, model1.gender, test = "F", method = "LRT")
+anova(crude, model1.age, test = "F", method = "LRT")
+anova(crude, model1.race, test = "F", method = "LRT")
+anova(crude, model1.education, test = "F", method = "LRT")
+anova(crude, model1.employment, test = "F", method = "LRT")
+anova(crude, model1.trsppres, test = "F", method = "LRT")
+anova(crude, model1.child, test = "F", method = "LRT")
+```
+
+
+```{r}
+linear.WASO = svyglm(gap_max ~ eating_ind,
+               design = model1.data.svy.sub)
+
+summary(linear.WASO)
+
+WASO.sub = subset(model1.data.svy.sub, gap_max > 0)
+linear.WASO = svyglm(gap_max ~ eating_ind,
+               design = WASO.sub)
+
+summary(linear.WASO)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+library(questionr)
+library(nnet)
+print("Multinomial Logistic Regression")
+# model1.data = read.csv("D:/muli.sas.csv")
+
+model1.data.multi = model1.data %>%
+  filter(primary.sleep == "primary sleep") %>%
+  filter(start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S"))) %>%
+  filter(days == "Weekday")
+# Long/Short Sleep Duration Overall
+model1.data.multi$sleep_duration.c.r = relevel(model1.data.multi$sleep_duration.c, 
+                                         ref = "normal")
+
+
+model2.mult.overall.crude = multinom(sleep_duration.c.r ~ eating_ind,
+                                 weights = final.weight.b, data = model1.data.multi, 
+                               trace=F)
+
+print("Overall crude")
+b = odds.ratio(model2.mult.overall.crude)
+print(1/b['long/eating_indNo Eat',1:3])
+print(1/b['short/eating_indNo Eat',1:3])
+# long 1.539579 1.539609 1.539549
+# short 1/c(1.07924, 1.07921, 1.0793)
+
+model2.mult.overall.adjusted = multinom(sleep_duration.c.r ~ as.character(year) +  
+                                 trsppres + race + tudiaryday + 
+                                 education.new + employment +
+                                 age.c*tesex + eating_ind,
+                                 weights = final.weight.b, data = model1.data.multi, 
+                               trace=F)
+print("Overall adjusted")
+a = odds.ratio(model2.mult.overall.adjusted)
+print(1/a['long/eating_indNo Eat',1:3])
+print(1/a['short/eating_indNo Eat',1:3])
+# long 1.807323 1.80736 1.807285
+# short 1.15249 1.15247 1.1525
+
+model1.data.female = model1.data.multi %>% filter(tesex == "Female")
+###############################################################################
+#################### Long/Short Sleep Duration Female #########################
+###############################################################################
+model1.data.female$sleep_duration.c.r = relevel(model1.data.female$sleep_duration.c, 
+                                         ref = "normal")
+
+model2.mult.female.crude = multinom(sleep_duration.c.r ~ eating_ind,
+                                 weights = final.weight.b, 
+                                 data = model1.data.female, 
+                                 trace=F)
+
+
+print("female crude")
+b = odds.ratio(model2.mult.female.crude)
+print(1/b['long/eating_indNo Eat',1:3])
+print(1/b['short/eating_indNo Eat',1:3])
+
+
+model2.mult.female.adjusted = multinom(sleep_duration.c.r ~ as.character(year) +  
+                                 trsppres + race + tudiaryday + 
+                                 education.new + employment +
+                                 age.c + eating_ind,
+                                 weights = final.weight.b,
+                                 data = model1.data.female, 
+                                 trace=F)
+
+print("female adjusted")
+a = odds.ratio(model2.mult.female.adjusted)
+print(1/a['long/eating_indNo Eat',1:3])
+print(1/a['short/eating_indNo Eat',1:3])
+# long 1/c(0.52923, 0.52921, 0.5292)
+# short 1/c(1.20438, 1.20433, 1.2044)
+
+model1.data.male = model1.data.multi %>% filter(tesex == "Male")
+###############################################################################
+#################### Long/Short Sleep Duration Male ###########################
+###############################################################################
+model1.data.male$sleep_duration.c.r = relevel(model1.data.male$sleep_duration.c, 
+                                         ref = "normal")
+
+
+
+model2.mult.male.crude = multinom(sleep_duration.c.r ~ eating_ind,
+                                 weights = final.weight.b, 
+                                 data = model1.data.male, 
+                                 trace=F)
+
+print("male crude")
+b = odds.ratio(model2.mult.male.crude)
+print(1/b['long/eating_indNo Eat',1:3])
+print(1/b['short/eating_indNo Eat',1:3])
+# long 1/c(0.54362, 0.54361, 0.5436)
+# short 1/c(1.05615, 1.05612, 1.0562)
+
+model2.mult.male.adjusted = multinom(sleep_duration.c.r ~ as.character(year) +  
+                                 trsppres + race + tudiaryday + 
+                                 education.new + employment +
+                                 age.c + eating_ind,
+                                 weights = final.weight.b,
+                                 data = model1.data.male, 
+                                 trace=F)
+
+print("male adjusted")
+a = odds.ratio(model2.mult.male.adjusted)
+print(1/a['long/eating_indNo Eat',1:3])
+print(1/a['short/eating_indNo Eat',1:3])
+# long 1/c(0.53453, 0.53451, 0.5345)
+# short 1/c(1.11552, 1.11549, 1.1156)
+
+
+
+
+
+
+```
+
+
+
+
+```{r}
+###############################################################################
+################### Remove Children care/medical care #########################
+###############################################################################
+# Fragmentation Overall
+print("Overall Adjust")
+model3.fragment.overall.adjusted = svyglm(gap_remove_child ~ as.character(year)  + 
+                                            tudiaryday + race + eating_ind + (trchildnum>0) +trsppres +
+                                            age.c + employment + education.new,
+                                          design = model1.data.svy.sub, family = binomial)
+
+a = odds.ratio(model3.fragment.overall.adjusted)
+1/a['eating_indNo Eat',1:3]
+print("Overall crude")
+model3.fragment.overall.crude = svyglm(gap_remove_child ~ eating_ind,
+                                       design = model1.data.svy.sub, family = binomial)
+
+a = odds.ratio(model3.fragment.overall.crude)
+1/a['eating_indNo Eat',1:3]
+
+# Fragmentation Female 
+model1.data.svy.female = subset(model1.data.svy.sub, tesex == "Female")
+print("Female Adjust")
+#model1.data.svy.female
+model3.fragment.female.adjusted = svyglm(gap_remove_child ~ as.character(year)  + 
+                                           tudiaryday + race + eating_ind + (trchildnum>0) +trsppres +
+                                           age.c + employment + education.new,
+                                         design = model1.data.svy.female,
+                                         family = binomial)
+
+a = odds.ratio(model3.fragment.female.adjusted)
+1/a['eating_indNo Eat',1:3]
+print("Female crude")
+model3.fragment.female.crude = svyglm(gap_remove_child ~ eating_ind,
+                                      design = model1.data.svy.female, family = binomial)
+
+a = odds.ratio(model3.fragment.female.crude)
+1/a['eating_indNo Eat',1:3]
+
+# Fragmentation Male
+model1.data.svy.male = subset(model1.data.svy.sub, tesex == "Male")
+print("Male Adjust")
+# model1.data.svy.male
+model3.fragment.male.adjusted = svyglm(gap_remove_child ~ as.character(year)  + 
+                                         tudiaryday + race + eating_ind + (trchildnum>0) +trsppres +
+                                         age.c + employment + education.new,
+                                       design = model1.data.svy.male, family = binomial)
+
+a = odds.ratio(model3.fragment.male.adjusted)
+1/a['eating_indNo Eat',1:3]
+print("Male crude")
+model3.fragment.male.crude = svyglm(gap_remove_child ~ eating_ind,
+                                    design = model1.data.svy.male, family = binomial)
+
+a = odds.ratio(model3.fragment.male.crude)
+1/a['eating_indNo Eat',1:3]
+
+```

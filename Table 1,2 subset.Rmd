@@ -1,0 +1,299 @@
+---
+title: "4 Table Shell"
+author: "iaosui"
+date: "Jan 2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(data.table)
+library(GGally)
+library(gridExtra)
+library(grid)
+library(latex2exp)
+library(mice)
+library(weights)
+library(scales)
+library(stats)
+library(knitr)
+library(survey)
+library(splines)
+library(plotly)
+library(kableExtra)
+
+options(scipen=999)
+
+state.info = read.csv("D:/galit/11th Three Model improve/state_code.csv")
+
+other.factor = read.csv("D:/galit/12th Sleep Duration/other_factor.csv") %>%
+  left_join(state.info%>%select(gestfips,longitude), by = "gestfips") %>%
+  mutate(education.new = ifelse(education %in% c("College graduate",
+                                                 "Master's degree or higher"),
+                            "College graduate",
+                            "Less than high school"),
+         education.new = ifelse(education == "High school graduate",
+                                "High school graduate", education.new),
+         education.new = as.factor(education.new))
+
+
+
+
+primary.sleep = read.csv("D:/galit/18th Debug/primary_sleep_timing and duration.debug.csv") %>%
+  mutate(start = as.POSIXct(start),
+         stop = as.POSIXct(stop),
+         start = start +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         stop = stop +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         duration = as.numeric(stop - start, units = "mins"))
+
+gap_total = read.csv("D:/galit/18th Debug/gap_total.debug.csv") %>%
+  select(tucaseid, gap_duration, gap_num)
+
+
+# setwd("D:/galit/8th Report_regression for tendency/")
+# act_dat = read.csv("act_duration.2hrs.spread.csv")
+
+act_dat = read.csv("D:/galit/18th Debug/act_duration.1hr.debug.csv")
+
+predictors = act_dat %>%
+  select(tucaseid, X110101)
+
+WASO = read.csv("D:/galit/18th Debug/Gap_activity.debug.csv") %>%
+  mutate(start = as.POSIXct(start, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         stop = as.POSIXct(stop, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         start_sleep = as.POSIXct(start_sleep, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         stop_sleep = as.POSIXct(stop_sleep, tryFormats = c("%Y-%m-%d %H:%M:%S")),
+         start = start +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         stop = stop +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         duration = as.numeric(stop - start, units = "mins"),
+         start_sleep = start_sleep +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         stop_sleep = stop_sleep +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         sleep_duration = as.numeric(stop_sleep - start_sleep,
+                                     units = "mins")) %>%  
+  group_by(tucaseid) %>%
+  mutate(con_gap_30 = ifelse(gap_duration >= 30, gap_duration, 0),
+         con_gap_30 = max(con_gap_30),
+         care_children = ifelse(trcode %in% c(30101, 30301), gap_duration, 0),
+         care_children = max(care_children)) %>%
+  group_by(tucaseid, con_gap_30, care_children, sleep_duration) %>%
+  summarise(gap_max = max(gap_duration),
+            gap_duration = sum(gap_duration),
+            gap_num = sum(n())) %>%
+  select(tucaseid, con_gap_30, care_children, gap_duration, gap_max, 
+         gap_num, sleep_duration) %>%
+  ungroup()
+    
+```
+
+```{r}
+whole.data = primary.sleep %>% group_by(tucaseid) %>%
+  # filter(primary.sleep=="primary sleep") %>%
+  summarise(start = start[1], 
+            duration = duration[1],
+            primary.sleep = primary.sleep[1]) %>%
+  # 1. Primary Sleep after 6 
+  # filter(start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S"))) %>%
+  left_join(predictors, by = "tucaseid") %>%
+  left_join(WASO, by = "tucaseid") %>%
+  replace(.,is.na(.),0) %>%
+  mutate(sleep_duration = (duration - gap_duration)) %>%
+  mutate(eating_ind = ifelse(X110101>0,'Eat','No Eat')) %>%
+  right_join(other.factor, by = "tucaseid") %>%
+  # replace(.,is.na(.),0) %>%
+  # 3. People recorded on Weekday
+  # filter(days == "Weekday") %>%
+  # Generating varaible race
+  mutate(race = ifelse(ptdtrace %in% c("White only","White Only"),"White only","Others"),
+         race = ifelse(ptdtrace %in% c("Black only","Black Only"),"Black only",race),
+         race = ifelse(pehspnon == "Hispanic", "Hispanic", race),
+         # race = as.factor(race),
+         employment = ifelse(telfs %in% c("Unemployed - on layoff", "Unemployed - looking"),
+                             "Unemployed","Employed"),
+         employment = ifelse(telfs == "Not in labor force",
+                            "Not in labor force",employment),
+         # employment = as.factor(employment)
+         ) %>%
+  ungroup()
+
+
+whole.data = whole.data %>%
+  mutate(final.weight.b = ifelse(final.weight>quantile(final.weight,0.9),
+                                 quantile(final.weight,0.9),
+                                 final.weight)) %>%
+  mutate(sleep_duration.c = ifelse(teage<18 & sleep_duration<8*60,
+                                   "short","normal"),
+         sleep_duration.c = ifelse(teage<18 & sleep_duration>10*60,
+                                   "long",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>65 & sleep_duration<7*60,
+                                   "short",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>65 & sleep_duration>8*60,
+                                   "long",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>=18 & teage<=64 & sleep_duration<7*60,
+                                   "short",sleep_duration.c),
+         sleep_duration.c = ifelse(teage>=18 & teage<=64 & sleep_duration>9*60,
+                                   "long",sleep_duration.c),
+         sleep_duration.c = as.factor(sleep_duration.c)) %>%
+  mutate(sleep_efficiency = sleep_duration/duration*100,
+         SE = ifelse(sleep_efficiency==100, 1, 0),
+         gap = ifelse(sleep_efficiency==100, 0, 1))
+
+whole.data = whole.data %>% 
+  mutate(gap_20 = ifelse(gap_duration<20,"less 20","larger and equal 20"),
+         gap_20 = ifelse(gap_duration==0,"No gap",gap_20),
+         gap_20 = as.factor(gap_20),
+         gap_30 = ifelse(gap_duration<30,"less 30","larger and equal 30"),
+         gap_30 = ifelse(gap_duration==0,"No gap",gap_30),
+         gap_30 = as.factor(gap_30),
+         gap_30.new = ifelse(gap_duration<30, "less than 30", "larger and equal to 30"),
+         gap_30.new = as.factor(gap_30.new)) %>% 
+  mutate(trchildnum = ifelse(teage < 18, trchildnum-1, trchildnum),
+         gap_remove_child = ifelse(gap_30 == "larger and equal 30" &
+                                     (gap_duration - care_children) >= 30, 1, 0),
+         child = ifelse(trchildnum > 0, "Yes", "No"))
+```
+
+### People, who I used to produce 2 tables below, have 3 contraints:
+#### 1. People had primary sleep period.
+#### 2. People slept after 18:00.
+#### 3. People were recorded on Weekday (Sunday - Thursday).
+
+```{r}
+# survey subset
+whole.data.svy = svydesign(ids = ~tucaseid,
+                         weights = ~final.weight.b,
+                         data = whole.data %>% mutate(slp = sleep_duration/60))
+whole.data.svy.sub = subset(whole.data.svy, primary.sleep=="primary sleep")
+whole.data.svy.sub = subset(whole.data.svy.sub, start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")))
+whole.data.svy.sub = subset(whole.data.svy.sub, days == "Weekday")
+
+whole.data.sub = whole.data %>% 
+  filter(primary.sleep=="primary sleep") %>%
+  filter(start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S"))) %>%
+  filter(days == "Weekday")
+```
+
+## Table 1: Sociodemographic correlates of eating at night
+```{r}
+table1 =list()
+
+row = c("tesex", "age.c", "race", "education", "employment", "trsppres", "child")
+for(i in 1:length(row)){
+  variable = row[i]
+  table1[[i]] = whole.data.sub %>% group_by(get(variable), eating_ind) %>%
+    summarise(N = n()) %>%
+    ungroup() %>%
+    group_by(`get(variable)`) %>%
+    summarise(N = sum(N)) %>%
+    ungroup() %>%
+    mutate("Ate <1 hour before bed,\n Proportion" = 
+                sprintf("%4.2f%%",100*svyby(formula = ~eating_ind, 
+                                        by = ~get(variable),
+                                        design = whole.data.svy.sub, 
+                                        FUN = svymean)[,2])) %>%
+    mutate(N = sprintf("%4.0f (%4.2f %%)",N,
+                       100*as.data.frame(svymean( ~get(variable), 
+                                                  design = whole.data.svy.sub))[,1])) %>%
+    rename("Sociodemographic\n predictors" = "get(variable)") %>%
+    select(`Sociodemographic\n predictors`, N, 
+           `Ate <1 hour before bed,\n Proportion`)
+}
+
+
+do.call(rbind,table1) %>%
+  kable(caption = "Table 1. Sociodemographic correlates of eating at night",
+        align = "c") %>%
+  kable_styling("striped", full_width = F,
+                latex_options = "HOLD_position") %>%
+  pack_rows("Sex", 1, 2) %>%
+  pack_rows("Age group, years(y)", 3, 7) %>%
+  pack_rows("Race/ethnicity", 8, 11) %>%
+  pack_rows("Educational status", 12, 15) %>%
+  pack_rows("Work status", 16, 18) %>%
+  pack_rows("Presence of spouse or unmarried partner", 19, 21) %>%
+  pack_rows("Children < 18", 22, 23)
+```
+
+
+```{r}
+svychisq(~tesex+eating_ind, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~age.c+eating_ind, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~race+eating_ind, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~education+eating_ind, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~employment+eating_ind, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~trsppres+eating_ind, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~child+eating_ind, design = whole.data.svy.sub, statistic = "Chisq")
+```
+
+## Table 2: Sociodemographic correlates of sleep duration and fragmented sleep
+```{r}
+table2 = list()
+
+row = c("tesex", "age.c", "race", "education", "employment", "trsppres", "child")
+for(i in 1:length(row)){
+  variable = row[i]
+  
+  table2[[i]] = as.data.frame(svyby(formula=~slp, by=~get(variable),
+            design = whole.data.svy.sub, FUN = svymean, 
+            vartype = c("se"))) %>%
+    mutate("Mean sleep duration (mean) $\\pm$ SE" = sprintf("%3.2f \u00B1 %3.3f", 
+                                                            slp, se)) %>%
+    rename("Sociodemographic predictors" = "get(variable)") %>%
+    cbind(whole.data.sub %>% group_by(get(variable)) %>%
+            summarise(N = n()) %>%
+            mutate("Was awake at night, Proportion" = sprintf("%4.2f%%",
+                                                          100*svyby(formula = ~gap_30.new, 
+                                                                    by = ~get(variable),
+                                                                    design = whole.data.svy.sub, 
+                                                                    FUN = svymean)[,2]))) %>%
+    select(`Sociodemographic predictors`, N, 
+           `Mean sleep duration (mean) $\\pm$ SE`,
+           `Was awake at night, Proportion`)
+  
+  colnames(table2[[i]]) = c("Sociodemographic predictors", "N",
+                            sprintf("Mean sleep duration (mean) \u00B1 SE"),
+                            "Was awake at night, Proportion")
+    
+}
+
+# rbind(table2.sex,table2.age,table2.race,table2.education,table2.employ)
+
+do.call(rbind,table2) %>%
+  kable(caption = "Table 2. Sociodemographic correlates of sleep duration and fragmented sleep",
+        align = "c") %>%
+  kable_styling("striped", full_width = F,
+                latex_options = "HOLD_position") %>%
+  pack_rows("Sex", 1, 2) %>%
+  pack_rows("Age group, years(y)", 3, 7) %>%
+  pack_rows("Race/ethnicity", 8, 11) %>%
+  pack_rows("Educational status", 12, 15) %>%
+  pack_rows("Work status", 16, 18) %>%
+  pack_rows("Presence of spouse or unmarried partner", 19, 21) %>%
+  pack_rows("Children < 18", 22, 23)
+```
+
+
+```{r}
+svychisq(~tesex+gap_30.new, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~age.c+gap_30.new, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~race+gap_30.new, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~education+gap_30.new, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~employment+gap_30.new, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~trsppres+gap_30.new, design = whole.data.svy.sub, statistic = "Chisq")
+svychisq(~child+gap_30.new, design = whole.data.svy.sub, statistic = "Chisq")
+```
