@@ -19,9 +19,6 @@ min(sum_exer)
 
 length(which(sum_exer > 0))
 
-library(survey)
-svymean(sum_exer)
-
 for (i in 1:length(sum_exer)){
   if (sum_exer[i]<0){
     sum_exer[i] = 0
