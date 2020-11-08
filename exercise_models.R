@@ -37,7 +37,7 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
 
-exer_dat = read.csv("exer_before_sleep1.csv")
+exer_dat = read.csv("exer_before_sleep2.csv")
 
 predictors = exer_dat %>%
   select(tucaseid, sum_exer)
@@ -193,6 +193,7 @@ model1.data.svy.sub = subset(model1.data.svy.sub, days == "Weekday")
 model1.overall.crude = svyglm(sleep_duration ~ (exer_ind == "Exercise"),
                               design = model1.data.svy.sub)
 print(model1.overall.crude)
+summary(model1.overall.crude)
 
 ci = summary(model1.overall.crude)$coefficient['exer_ind == "Exercise"TRUE',]
 ci[1]
@@ -211,8 +212,10 @@ c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
 crude = svyglm(sleep_duration ~ exer_ind,
                design = model1.data.svy.sub)
 row = c("tesex", "age.c", "race", "education", "employment", "trsppres", "child")
-model1.gender = svyglm(sleep_duration ~ exer_ind + tesex,
+model1.gender_age = svyglm(sleep_duration ~ exer_ind +age.c +tesex + age.c*tesex,
                        design = model1.data.svy.sub)
+summary(model1.gender_age)
+
 model1.age = svyglm(sleep_duration ~ exer_ind + age.c,
                     design = model1.data.svy.sub)
 model1.race = svyglm(sleep_duration ~ exer_ind + race,
@@ -238,12 +241,13 @@ anova(crude, model1.child, test = "F", method = "LRT")
 ###############################################################################
 ######################## Fragmentation Models ###################################
 ###############################################################################
-
+table(model1.data$exer_ind, model1.data$gap_20)
 library(questionr)
 # Fragmentation Overall
 print("Overall crude")
 model3.fragment.overall.crude = svyglm((gap_30=="larger and equal 30") ~ (exer_ind=="Exercise"),
                                        design = model1.data.svy.sub, family = binomial)
+summary(model3.fragment.overall.crude)
 
 a = odds.ratio(model3.fragment.overall.crude)
 a['exer_ind == "Exercise"TRUE',1:3]
@@ -259,7 +263,7 @@ a = odds.ratio(model3.fragment.overall.adjusted)
 a['exer_ind == "Exercise"TRUE',1:3]
 
 ###############################################################################
-######################## WASO Models ###################################
+######################## WASO Models ##########################################
 ###############################################################################
 
 linear.WASO = svyglm(gap_max ~ exer_ind,
