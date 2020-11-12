@@ -237,6 +237,25 @@ anova(crude, model1.employment, test = "F", method = "LRT")
 anova(crude, model1.trsppres, test = "F", method = "LRT")
 anova(crude, model1.child, test = "F", method = "LRT")
 
+# Sleep Duration for Female
+model1.data.svy.female = subset(model1.data.svy.sub, tesex == "Female")
+
+model1.female.crude = svyglm(sleep_duration ~ exer_ind,
+                             design = model1.data.svy.female)
+print("model1.female.crude")
+ci = summary(model1.female.crude)$coefficient['exer_indNo Exercise',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+# Sleep Duration for Male
+model1.data.svy.male = subset(model1.data.svy.sub, tesex == "Male")
+
+model1.male.crude = svyglm(sleep_duration ~ exer_ind,
+                             design = model1.data.svy.male)
+print("model1.male.crude")
+ci = summary(model1.male.crude)$coefficient['exer_indNo Exercise',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
 
 ###############################################################################
 ######################## Fragmentation Models ###################################
@@ -245,7 +264,7 @@ table(model1.data$exer_ind, model1.data$gap_20)
 library(questionr)
 # Fragmentation Overall
 print("Overall crude")
-model3.fragment.overall.crude = svyglm((gap_30=="larger and equal 30") ~ (exer_ind=="Exercise"),
+model3.fragment.overall.crude = svyglm((gap_20=="larger and equal 20") ~ (exer_ind=="Exercise"),
                                        design = model1.data.svy.sub, family = binomial)
 summary(model3.fragment.overall.crude)
 

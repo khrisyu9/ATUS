@@ -12,7 +12,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE)
 ```
 
-
 ```{r}
 library(dplyr)
 library(tidyverse)
@@ -120,8 +119,6 @@ WASO = read.csv("D:/galit/18th Debug/Gap_activity.debug.csv") %>%
   ungroup()
     
 ```
-
-
 
 ```{r}
 model1.data = primary.sleep %>% group_by(tucaseid) %>%
@@ -476,15 +473,6 @@ linear.WASO = svyglm(gap_max ~ eating_ind,
 summary(linear.WASO)
 
 ```
-
-
-
-
-
-
-
-
-
 
 
 ```{r}
