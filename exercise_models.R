@@ -37,10 +37,51 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
 
-exer_dat = read.csv("exer_before_sleep2.csv")
+exer_dat = read.csv("first_exer.csv")
 
 predictors = exer_dat %>%
-  select(tucaseid, sum_exer)
+  select(tucaseid, exer_time)
+
+model1=merge(primary.sleep, exer_dat, by = "tucaseid", all.x = TRUE)
+
+#################
+model1$exer_time = as.factor(model1$exer_time)
+
+
+model1_dur_mo=glm(duration ~ (exer_time == "morning"),data = model1)
+ci = summary(model1_dur_mo)$coefficient['exer_time == "morning"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+model1_dur_af=glm(duration ~ (exer_time == "afternoon"),data = model1)
+ci = summary(model1_dur_af)$coefficient['exer_time == "afternoon"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+model1_dur_ev=glm(duration ~ (exer_time == "evening"),data = model1)
+ci = summary(model1_dur_ev)$coefficient['exer_time == "evening"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+model1_dur_ev=glm(duration ~ (exer_time == NA),data = model1)
+ci = summary(model1_dur_ev)$coefficient['exer_time == "NA"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+model2=merge(primary.sleep, exer_dat, by = "tucaseid", all.x = TRUE)
+
+model2$exer_time = as.factor(model2$exer_time)
+
+model2=merge(model2, WASO, by = "tucaseid", all.x = TRUE)
+
+model2_waso_mo=glm((con_gap_30 > 0) ~ (exer_time == "morning"),
+    data = model2)
+
+table(model2$exer_time, model2$con_gap_30)
+
+ci = summary(model1_waso_mo)$coefficient['exer_time == "morning"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])ci = summary(model1_dur_mo)$coefficient['exer_time == "morning"TRUE',]
 
 WASO = read.csv("Gap_activity.debug.csv") %>%
   mutate(start = as.POSIXct(start, tryFormats = c("%Y-%m-%d %H:%M:%S")),
@@ -100,7 +141,9 @@ model1.data = primary.sleep %>% group_by(tucaseid) %>%
   left_join(WASO, by = "tucaseid") %>%
   replace(.,is.na(.),0) %>%
   mutate(sleep_duration = (duration - gap_duration)) %>%
-  mutate(exer_ind = ifelse(sum_exer>0,'Exercise','No Exercise')) %>%
+  mutate(exer_morning = ifelse(exer_time = "morning",'Morning','No Morning')) %>%
+  mutate(exer_afternoon = ifelse(exer_time = "afternoon",'Afternoon','No Afternoon')) %>%
+  mutate(exer_evening = ifelse(exer_time = "evening",'Evening','No Evening')) %>%
   right_join(other.factor, by = "tucaseid") %>%
   # replace(.,is.na(.),0) %>%
   # 3. People recorded on Weekday
