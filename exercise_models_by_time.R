@@ -357,6 +357,39 @@ model2.fragment.overall.crude = svyglm((gap_20=="larger and equal 20") ~ exer_ti
                                                 design = model1.data.svy.sub, family = binomial)
 summary(model2.fragment.overall.crude)
 
+# overall for female
+model1.data.svy.female = subset(model1.data.svy.sub, tesex == "Female")
+model2.female.fragment.overall.crude = svyglm((gap_20=="larger and equal 20") ~ exer_time,
+                             design = model1.data.svy.female, family = binomial)
+summary(model2.female.fragment.overall.crude)
+
+# Sleep Duration for Male
+model1.data.svy.male = subset(model1.data.svy.sub, tesex == "Male")
+model2.male.fragment.overall.crude = svyglm((gap_20=="larger and equal 20") ~ exer_time,
+                           design = model1.data.svy.male, family = binomial)
+summary(model2.male.fragment.overall.crude)
+
+#afternoon for male
+model2.male.fragment.crude.afternoon = svyglm((gap_20=="larger and equal 20") ~ (exer_time=="afternoon"),
+                                                 design = model1.data.svy.male, family = binomial)
+summary(model2.male.fragment.crude.afternoon)
+mb = odds.ratio(model2.male.fragment.crude.afternoon)
+mb['exer_time == "afternoon"TRUE',1:3]
+
+#evening for male
+model2.male.fragment.crude.evening = svyglm((gap_20=="larger and equal 20") ~ (exer_time=="evening"),
+                                              design = model1.data.svy.male, family = binomial)
+summary(model2.male.fragment.crude.evening)
+mc = odds.ratio(model2.male.fragment.crude.evening)
+mc['exer_time == "evening"TRUE',1:3]
+
+#multiple for male
+model2.male.fragment.crude.multiple = svyglm((gap_20=="larger and equal 20") ~ (exer_time=="multiple"),
+                                              design = model1.data.svy.male, family = binomial)
+summary(model2.male.fragment.crude.multiple)
+md = odds.ratio(model2.male.fragment.crude.multiple)
+md['exer_time == "multiple"TRUE',1:3]
+
 #print("Overall Adjust")
 #model3.fragment.overall.adjusted = svyglm((gap_30=="larger and equal 30") ~ as.character(year)  + 
 #                                            tudiaryday + race + (exer_ind=="Exercise") +
