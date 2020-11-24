@@ -65,6 +65,8 @@ actlog2018=read.csv("D:/ATUS/ATUS_Originial_Data/2018atus/actlog.csv")
 exer_2018=filter(actlog2018, tutier1code == 13 & tutier2code == 1)
 exer_2018=exer_2018[,c("tucaseid", "tuactdur24", "tutier1code", "tutier2code", "tutier3code", "tustarttim", "tustoptime")]
 
+exer_2019=read.csv("D:/ATUS/ATUS_Originial_Data/2019atus/actlog.csv")
+
 exer=exer_2003
 exer=rbind(exer,exer_2004)
 exer=rbind(exer,exer_2005)
