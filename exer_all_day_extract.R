@@ -83,6 +83,7 @@ exer=rbind(exer,exer_2015)
 exer=rbind(exer,exer_2016)
 exer=rbind(exer,exer_2017)
 exer=rbind(exer,exer_2018)
+exer=rbing(exer,exer_2019)
 
 library(data.table)
 
