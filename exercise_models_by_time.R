@@ -32,7 +32,8 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          stop = stop +
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
-         duration = as.numeric(stop - start, units = "mins"))
+         duration = as.numeric(stop - start, units = "mins"),
+         starttime = as.numeric(start - (as.POSIXct("2020-12-04 00:00:00")), units = "mins"))
 
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
@@ -129,7 +130,8 @@ model1.data[is.na(model1.data)]=0
 
 model1.data = model1.data %>% group_by(tucaseid) %>%
   # filter(primary.sleep=="primary sleep") %>%
-  summarise(start = start[1], 
+  summarise(start = start[1],
+            starttime = starttime[1],
             duration = duration[1],
             stop = stop[1],
             primary.sleep = primary.sleep[1],
@@ -312,7 +314,7 @@ model1.female.crude = svyglm(sleep_duration ~ exer_time,
                              design = model1.data.svy.female)
 summary(model1.female.crude)
 
-# Sleep Duration for Male
+#################### Sleep Duration for Male ############################
 model1.data.svy.male = subset(model1.data.svy.sub, tesex == "Male")
 model1.male.crude = svyglm(sleep_duration ~ exer_time,
                              design = model1.data.svy.male)
@@ -420,6 +422,74 @@ linear.WASO.sub.10 = svyglm(gap_max ~ exer_ind,
                          design = WASO.sub.10)
 
 summary(linear.WASO.sub.10)
+
+
+###############################################################################
+######################## Primary Sleep Start Time Models ###################################
+###############################################################################
+# Primary Sleep Start Time Overall
+model3.data.svy = svydesign(ids = ~tucaseid,
+                            weights = ~final.weight.b,
+                            data = model1.data%>% mutate(slp = sleep_duration/60))
+model3.data.svy.sub = subset(model3.data.svy, primary.sleep=="primary sleep")
+model3.data.svy.sub = subset(model3.data.svy.sub, start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")))
+# model1.data.svy.sub = subset(model1.data.svy.sub, days == "Weekday")
+model3.data.svy.sub = subset(model3.data.svy.sub, days == "Weekday")
+###model for people who only exercise in the morning
+model3.overall.crude.morning = svyglm(starttime ~ (exer_time == "morning"),
+                                      design = model3.data.svy.sub)
+summary(model3.overall.crude.morning)
+
+ci = summary(model3.overall.crude.morning)$coefficient['exer_time == "morning"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+###model for people who only exercise in the afternoon
+model3.overall.crude.afternoon = svyglm(starttime ~ (exer_time == "afternoon"),
+                                        design = model3.data.svy.sub)
+summary(model3.overall.crude.afternoon)
+
+ci = summary(model3.overall.crude.afternoon)$coefficient['exer_time == "afternoon"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+###model for people who only exercise in the evening
+model3.overall.crude.evening = svyglm(starttime ~ (exer_time == "evening"),
+                                      design = model3.data.svy.sub)
+summary(model3.overall.crude.evening)
+
+ci = summary(model3.overall.crude.evening)$coefficient['exer_time == "evening"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+###model for people who exercise multiple times throughout the day
+model3.overall.crude.multiple = svyglm(starttime ~ (exer_time == "multiple"),
+                                       design = model3.data.svy.sub)
+summary(model3.overall.crude.multiple)
+
+ci = summary(model3.overall.crude.multiple)$coefficient['exer_time == "multiple"TRUE',]
+ci[1]
+c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+################## Exercise Model with Only Age and Sex #######################
+crude = svyglm(starttime ~ exer_time,
+               design = model3.data.svy.sub)
+# row = c("tesex", "age.c", "race", "education", "employment", "trsppres", "child")
+model3.age_sex = svyglm(starttime ~ exer_time +age.c +tesex,
+                        design = model3.data.svy.sub)
+summary(model3.age_sex)
+
+#################### Primary Sleep Start Time for Female ##########################
+model3.data.svy.female = subset(model3.data.svy.sub, tesex == "Female")
+model3.female.crude = svyglm(starttime ~ exer_time,
+                             design = model3.data.svy.female)
+summary(model3.female.crude)
+
+#################### Primary Sleep Start Time for Male ############################
+model3.data.svy.male = subset(model3.data.svy.sub, tesex == "Male")
+model3.male.crude = svyglm(starttime ~ exer_time,
+                           design = model3.data.svy.male)
+summary(model3.male.crude)
 
 
 ###############################################################################
