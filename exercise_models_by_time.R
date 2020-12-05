@@ -33,12 +33,19 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
          stop = stop +
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          duration = as.numeric(stop - start, units = "mins"),
-         starttime = as.numeric(start - (as.POSIXct("2020-12-04 00:00:00")), units = "mins"))
+         starttime = as.numeric(start - (as.POSIXct("2020-12-05 00:00:00")), units = "mins"))
 
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
 
-exer_dat = read.csv("all_exercise.csv")
+exer_dat = read.csv("all_exercise.csv") %>%
+  mutate(start = as.POSIXct(tustarttim),
+         stop = as.POSIXct(tustoptime),
+         start = start +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         stop = stop +
+           as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
+         exer_duration = as.numeric(stop - start, units = "mins"))
 
 exer_dat$exer_time=as.character(exer_dat$exer_time)
 
@@ -266,6 +273,13 @@ ci = summary(model1.overall.crude.multiple)$coefficient['exer_time == "multiple"
 ci[1]
 c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
 
+##############################################################################
+model1.overall.crude.general = svyglm(sleep_duration ~ exer_time,
+                                      design = model1.data.svy.sub)
+summary(model1.overall.crude.general)
+
+table(model1.data.svy.sub$variables$exer_time)
+
 ################## Exercise Model with Only Age and Sex #######################
 crude = svyglm(sleep_duration ~ exer_time,
                design = model1.data.svy.sub)
@@ -273,7 +287,15 @@ crude = svyglm(sleep_duration ~ exer_time,
 model1.age_sex = svyglm(sleep_duration ~ exer_time +age.c +tesex,
                        design = model1.data.svy.sub)
 summary(model1.age_sex)
-table(model1.data$exer_time, model1.data$age.c, model1.data$tesex)
+
+################## Exercise Model with Years #######################
+crude = svyglm(sleep_duration ~ exer_time,
+               design = model1.data.svy.sub)
+# row = c("tesex", "age.c", "race", "education", "employment", "trsppres", "child")
+model1.year = svyglm(sleep_duration ~ exer_time +year,
+                        design = model1.data.svy.sub)
+summary(model1.year)
+table(model1.data$exer_time, model1.data$age.c)
 ############ Exercise Breakdown Models with Each Demographic Variable ##################
 model1.age = svyglm(sleep_duration ~ exer_time + age.c,
                     design = model1.data.svy.sub)
@@ -470,6 +492,11 @@ summary(model3.overall.crude.multiple)
 ci = summary(model3.overall.crude.multiple)$coefficient['exer_time == "multiple"TRUE',]
 ci[1]
 c(ci[1]-1.96*ci[2],ci[1]+1.96*ci[2])
+
+###general model for people
+model3.overall.crude.general = svyglm(starttime ~ exer_time,
+                                      design = model3.data.svy.sub)
+summary(model3.overall.crude.general)
 
 ################## Exercise Model with Only Age and Sex #######################
 crude = svyglm(starttime ~ exer_time,
