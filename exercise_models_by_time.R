@@ -38,16 +38,23 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
 
-exer_dat = read.csv("all_exercise.csv") %>%
-  mutate(start = as.POSIXct(tustarttim),
-         stop = as.POSIXct(tustoptime),
+exer_dat = read.csv("all_exercise.csv")
+exer_dat = exer_dat %>%
+  mutate(start = as.POSIXct(paste("1970-01-01", tustarttim), format="%Y-%m-%d %H:%M:%S"),
+         stop = as.POSIXct(paste("1970-01-01", tustoptime), format="%Y-%m-%d %H:%M:%S"),
          start = start +
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          stop = stop +
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          exer_duration = as.numeric(stop - start, units = "mins"))
+exer_dat = exer_dat %>%
+  filter(exer_duration > 0)
 
-exer_dat$exer_time=as.character(exer_dat$exer_time)
+length(exer_dat$tucaseid)
+
+length(which(exer_dat$exer_duration < 30))
+
+length(which(exer_dat$exer_duration > 120))
 
 #predictors = as.data.frame(exer_dat %>%
 #  select(tucaseid, exer_time))
