@@ -33,7 +33,7 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
          stop = stop +
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          duration = as.numeric(stop - start, units = "mins"),
-         starttime = as.numeric(start - (as.POSIXct("2020-12-21 00:00:00")), units = "mins"))
+         starttime = as.numeric(start - (as.POSIXct("2020-12-22 00:00:00")), units = "mins"))
 
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
@@ -50,6 +50,8 @@ exer_dat = exer_dat %>%
 exer_dat = exer_dat %>%
   filter(exer_duration > 0)
 
+exer_dat = exer_dat[,c(1:5,8,11)]
+  
 length(exer_dat$tucaseid)
 
 # exercise duration distribution
@@ -154,8 +156,10 @@ model1.data = model1.data %>% group_by(tucaseid) %>%
             primary.sleep = primary.sleep[1],
             exer_time = exer_time[1],
             exer_duration = exer_duration[1]) %>%
-  mutate(exer_duration.c = ifelse(exer_duration < 30,
-                                   "less30",exer_duration.c),
+  mutate(exer_duration.c = ifelse(exer_duration = 0,
+                                  "no_exercise", "others"),
+         exer_duration.c = ifelse(exer_duration > 0 & exer_duration < 30,
+                                   "less30", exer_duration.c),
          exer_duration.c = ifelse(exer_duration >= 30 & exer_duration < 60,
                                    "between30_60",exer_duration.c),
          exer_duration.c = ifelse(exer_duration >= 60 & exer_duration < 90,
