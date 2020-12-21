@@ -152,7 +152,19 @@ model1.data = model1.data %>% group_by(tucaseid) %>%
             duration = duration[1],
             stop = stop[1],
             primary.sleep = primary.sleep[1],
-            exer_time = exer_time[1]) %>%
+            exer_time = exer_time[1],
+            exer_duration = exer_duration[1]) %>%
+  mutate(exer_duration.c = ifelse(exer_duration < 30,
+                                   "less30",exer_duration.c),
+         exer_duration.c = ifelse(exer_duration >= 30 & exer_duration < 60,
+                                   "between30_60",exer_duration.c),
+         exer_duration.c = ifelse(exer_duration >= 60 & exer_duration < 90,
+                                  "between60_90",exer_duration.c),
+         exer_duration.c = ifelse(exer_duration >= 90 & exer_duration < 120,
+                                  "between90_120",exer_duration.c),
+         exer_duration.c = ifelse(exer_duration >= 120,
+                                  "greater120",exer_duration.c),
+         exer_duration.c = as.factor(exer_duration.c)) %>%
   # 1. Primary Sleep after 6 
   # filter(start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S"))) %>%
   left_join(WASO, by = "tucaseid") %>%
