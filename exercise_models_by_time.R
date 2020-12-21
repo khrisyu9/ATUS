@@ -52,8 +52,9 @@ exer_dat = exer_dat %>%
 
 length(exer_dat$tucaseid)
 
+# exercise duration distribution
 length(which(exer_dat$exer_duration < 30))
-
+length(which(exer_dat$exer_duration < 60 & exer_dat$exer_duration >= 30))
 length(which(exer_dat$exer_duration > 120))
 
 #predictors = as.data.frame(exer_dat %>%
