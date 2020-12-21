@@ -33,7 +33,7 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
          stop = stop +
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          duration = as.numeric(stop - start, units = "mins"),
-         starttime = as.numeric(start - (as.POSIXct("2020-12-05 00:00:00")), units = "mins"))
+         starttime = as.numeric(start - (as.POSIXct("2020-12-21 00:00:00")), units = "mins"))
 
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
@@ -55,7 +55,9 @@ length(exer_dat$tucaseid)
 # exercise duration distribution
 length(which(exer_dat$exer_duration < 30))
 length(which(exer_dat$exer_duration < 60 & exer_dat$exer_duration >= 30))
-length(which(exer_dat$exer_duration > 120))
+length(which(exer_dat$exer_duration < 90 & exer_dat$exer_duration >= 60))
+length(which(exer_dat$exer_duration < 120 & exer_dat$exer_duration >= 90))
+length(which(exer_dat$exer_duration >= 120))
 
 #predictors = as.data.frame(exer_dat %>%
 #  select(tucaseid, exer_time))
