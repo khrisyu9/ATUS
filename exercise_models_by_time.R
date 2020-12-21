@@ -48,9 +48,10 @@ exer_dat = exer_dat %>%
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          exer_duration = as.numeric(stop - start, units = "mins"))
 exer_dat = exer_dat %>%
-  filter(exer_duration > 0)
+  filter(exer_duration > 0) %>%
+  mutate(exer_duration90 = ifelse(exer_duration > 90, 90, exer_duration))
 
-exer_dat = exer_dat[,c(1:5,8,11)]
+exer_dat = exer_dat[,c(1:5,8,11,12)]
   
 length(exer_dat$tucaseid)
 
@@ -157,7 +158,8 @@ model1.data = model1.data %>% group_by(tucaseid) %>%
             stop = stop[1],
             primary.sleep = primary.sleep[1],
             exer_time = exer_time[1],
-            exer_duration = exer_duration[1]) %>%
+            exer_duration = exer_duration[1],
+            exer_duration90 = exer_duration90[1]) %>%
   mutate(exer_duration.c = ifelse(exer_duration == 0,
                                   "no_exercise", "others"),
          exer_duration.c = ifelse(exer_duration > 0 & exer_duration < 30,
@@ -267,14 +269,23 @@ model1.data.svy.sub = subset(model1.data.svy.sub, start > as.POSIXct(strptime("1
 model1.data.svy.sub = subset(model1.data.svy.sub, days == "Weekday")
 
 # Build the model
-model.spline.general <- svyglm(sleep_duration ~ exer_time + bs(exer_duration, knots = 5) + tesex + age.c, 
+model.general <- svyglm(sleep_duration ~ exer_duration90 + tesex*age.c, 
                 design = model1.data.svy.sub)
-summary(model.spline.general)
+summary(model.general)
+
+hist(model1.data.svy.sub$variables$exer_duration90)
 
 # only exercise time
 model.spline.exerciseonly <- svyglm(sleep_duration ~ exer_time + bs(exer_duration, knots = 5), 
                        design = model1.data.svy.sub)
 summary(model.spline.exerciseonly)
+
+# waso overall
+model.overall.crude = svyglm((gap_20=="larger and equal 20") ~ exer_duration90 + tesex*age.c,
+                                       design = model1.data.svy.sub, family = binomial)
+summary(model.overall.crude)
+
+
 
 ###############################################################################
 ######################## Sleep Duration Models ###################################
