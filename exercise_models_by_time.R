@@ -257,19 +257,24 @@ model1.data = model1.data %>%
 ###############################################################################
 ######################## Spline Models ########################################
 ###############################################################################
+# Sleep Duration Overall
+model1.data.svy = svydesign(ids = ~tucaseid,
+                            weights = ~final.weight.b,
+                            data = model1.data%>% mutate(slp = sleep_duration/60))
+model1.data.svy.sub = subset(model1.data.svy, primary.sleep=="primary sleep")
+model1.data.svy.sub = subset(model1.data.svy.sub, start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")))
+# model1.data.svy.sub = subset(model1.data.svy.sub, days == "Weekday")
+model1.data.svy.sub = subset(model1.data.svy.sub, days == "Weekday")
 
+# Build the model
+model.spline.general <- svyglm(sleep_duration ~ exer_time + bs(exer_duration, knots = 5) + tesex + age.c, 
+                design = model1.data.svy.sub)
+summary(model.spline.general)
 
-
-
-
-
-
-
-
-
-
-
-
+# only exercise time
+model.spline.exerciseonly <- svyglm(sleep_duration ~ exer_time + bs(exer_duration, knots = 5), 
+                       design = model1.data.svy.sub)
+summary(model.spline.exerciseonly)
 
 ###############################################################################
 ######################## Sleep Duration Models ###################################
