@@ -144,6 +144,8 @@ group_by(tucaseid) %>%
 
 WASO = as.data.frame(WASO)
 
+##combine data sets together for modeling
+
 model1.data = merge(primary.sleep, exer_dat, by = "tucaseid", all.x = TRUE)
 model1.data[is.na(model1.data)]=0
 
@@ -156,7 +158,7 @@ model1.data = model1.data %>% group_by(tucaseid) %>%
             primary.sleep = primary.sleep[1],
             exer_time = exer_time[1],
             exer_duration = exer_duration[1]) %>%
-  mutate(exer_duration.c = ifelse(exer_duration = 0,
+  mutate(exer_duration.c = ifelse(exer_duration == 0,
                                   "no_exercise", "others"),
          exer_duration.c = ifelse(exer_duration > 0 & exer_duration < 30,
                                    "less30", exer_duration.c),
