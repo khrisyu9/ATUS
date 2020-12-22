@@ -13,6 +13,7 @@ library(knitr)
 library(survey)
 library(splines)
 library(plotly)
+library(quantreg)
 
 setwd("D:/ATUS/Processed_Data/")
 
@@ -257,6 +258,33 @@ model1.data = model1.data %>%
 
 
 ###############################################################################
+######################## Quantile Regression Models ########################################
+###############################################################################
+# Sleep Duration Overall
+model1.data.sub = subset(model1.data, primary.sleep=="primary sleep")
+model1.data.sub = subset(model1.data.sub, start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")))
+model1.data.sub = subset(model1.data.sub, days == "Weekday")
+model1.data.sub = subset(model1.data.sub, exer_duration90 > 0 & sleep_duration > 0)
+
+# Build the general quantile model
+qs <- 1:9/10
+quantile.model.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, data = model1.data.sub, tau = qs)
+
+plot(summary(quantile.model.general), parm="exer_duration90")
+
+
+# only exercise time as predictor
+qs <- 1:9/10
+quantile.model.exercise <- rq(sleep_duration ~ exer_duration90, data = model1.data.sub, tau = qs)
+
+plot(summary(quantile.model.exercise), parm="exer_duration90")
+
+# waso overall
+model.overall.crude = svyglm((gap_20=="larger and equal 20") ~ exer_duration90 + tesex*age.c,
+                             design = model1.data.svy.sub, family = binomial)
+summary(model.overall.crude)
+
+###############################################################################
 ######################## Spline Models ########################################
 ###############################################################################
 # Sleep Duration Overall
@@ -284,7 +312,6 @@ summary(model.spline.exerciseonly)
 model.overall.crude = svyglm((gap_20=="larger and equal 20") ~ exer_duration90 + tesex*age.c,
                                        design = model1.data.svy.sub, family = binomial)
 summary(model.overall.crude)
-
 
 
 ###############################################################################
