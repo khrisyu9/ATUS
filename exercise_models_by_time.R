@@ -266,6 +266,28 @@ model1.data.sub = subset(model1.data.sub, start > as.POSIXct(strptime("18:00:00"
 model1.data.sub = subset(model1.data.sub, days == "Weekday")
 model1.data.sub = subset(model1.data.sub, exer_duration90 > 0 & sleep_duration > 0)
 
+##########################data visualization###############################################
+ggplot(model1.data.sub, aes(exer_duration,sleep_duration)) + geom_point()
+ggplot(model1.data.sub, aes(exer_duration90,sleep_duration)) + geom_point()
+
+#########################Use exer_duration below as predictor##############################
+# Build the general quantile model
+qs <- 1:9/10
+quantile.model.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data.sub, tau = qs)
+
+summary(quantile.model.general)
+
+plot(summary(quantile.model.general), parm="exer_duration90")
+
+
+# only exercise time as predictor
+qs <- 1:9/10
+quantile.model.exercise <- rq(sleep_duration ~ exer_duration90, weight = final.weight.b, data = model1.data.sub, tau = qs)
+summary(quantile.model.exercise)
+
+plot(summary(quantile.model.exercise), parm="exer_duration90")
+
+##########################Use exer_duration90 below instead################################
 # Build the general quantile model
 qs <- 1:9/10
 quantile.model.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data.sub, tau = qs)
