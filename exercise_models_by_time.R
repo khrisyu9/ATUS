@@ -282,10 +282,6 @@ summary(quantile.model.exercise)
 
 plot(summary(quantile.model.exercise), parm="exer_duration90")
 
-# waso overall
-model.overall.crude = svyglm((gap_20=="larger and equal 20") ~ exer_duration90 + tesex*age.c,
-                             design = model1.data.svy.sub, family = binomial)
-summary(model.overall.crude)
 
 ###############################################################################
 ######################## Spline Models ########################################
