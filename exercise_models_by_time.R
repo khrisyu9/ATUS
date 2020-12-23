@@ -34,7 +34,7 @@ primary.sleep = read.csv("primary_sleep_timing and duration.debug.csv") %>%
          stop = stop +
            as.numeric(as.POSIXct(strptime("19:00:00",format = "%H:%M:%S"))),
          duration = as.numeric(stop - start, units = "mins"),
-         starttime = as.numeric(start - (as.POSIXct("2020-12-22 00:00:00")), units = "mins"))
+         starttime = as.numeric(start - (as.POSIXct("2020-12-24 00:00:00")), units = "mins"))
 
 gap_total = read.csv("gap_total.debug.csv") %>%
   select(tucaseid, gap_duration, gap_num)
@@ -268,14 +268,17 @@ model1.data.sub = subset(model1.data.sub, exer_duration90 > 0 & sleep_duration >
 
 # Build the general quantile model
 qs <- 1:9/10
-quantile.model.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, data = model1.data.sub, tau = qs)
+quantile.model.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data.sub, tau = qs)
+
+summary(quantile.model.general)
 
 plot(summary(quantile.model.general), parm="exer_duration90")
 
 
 # only exercise time as predictor
 qs <- 1:9/10
-quantile.model.exercise <- rq(sleep_duration ~ exer_duration90, data = model1.data.sub, tau = qs)
+quantile.model.exercise <- rq(sleep_duration ~ exer_duration90, weight = final.weight.b, data = model1.data.sub, tau = qs)
+summary(quantile.model.exercise)
 
 plot(summary(quantile.model.exercise), parm="exer_duration90")
 
