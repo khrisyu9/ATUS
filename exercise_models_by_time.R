@@ -273,36 +273,29 @@ ggplot(model1.data.sub, aes(exer_duration90,sleep_duration)) + geom_point()
 #########################Use exer_duration below as predictor##############################
 # Build the general quantile model
 qs <- 1:9/10
-quantile.model.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data.sub, tau = qs)
-
+quantile.model.general <- rq(sleep_duration ~ exer_duration + tesex*age.c, weight = final.weight.b, data = model1.data.sub, tau = qs)
 summary(quantile.model.general)
-
-plot(summary(quantile.model.general), parm="exer_duration90")
-
+plot(summary(quantile.model.general), parm="exer_duration")
 
 # only exercise time as predictor
 qs <- 1:9/10
-quantile.model.exercise <- rq(sleep_duration ~ exer_duration90, weight = final.weight.b, data = model1.data.sub, tau = qs)
+quantile.model.exercise <- rq(sleep_duration ~ exer_duration, weight = final.weight.b, data = model1.data.sub, tau = qs)
 summary(quantile.model.exercise)
-
-plot(summary(quantile.model.exercise), parm="exer_duration90")
+plot(summary(quantile.model.exercise), parm="exer_duration")
 
 ##########################Use exer_duration90 below instead################################
 # Build the general quantile model
 qs <- 1:9/10
-quantile.model.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data.sub, tau = qs)
-
-summary(quantile.model.general)
-
-plot(summary(quantile.model.general), parm="exer_duration90")
+quantile.model90.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data.sub, tau = qs)
+summary(quantile.model90.general)
+plot(summary(quantile.model90.general), parm="exer_duration90")
 
 
 # only exercise time as predictor
 qs <- 1:9/10
-quantile.model.exercise <- rq(sleep_duration ~ exer_duration90, weight = final.weight.b, data = model1.data.sub, tau = qs)
-summary(quantile.model.exercise)
-
-plot(summary(quantile.model.exercise), parm="exer_duration90")
+quantile.model90.exercise <- rq(sleep_duration ~ exer_duration90, weight = final.weight.b, data = model1.data.sub, tau = qs)
+summary(quantile.model90.exercise)
+plot(summary(quantile.model90.exercise), parm="exer_duration90")
 
 
 ###############################################################################
