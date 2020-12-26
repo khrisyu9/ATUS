@@ -12,7 +12,7 @@ year = floor(d)
 female = as.integer(runif(n, 0, 1) < 1/2)
 age = runif(n, 0, 80)
 
-# Generate an outcome.  The mean structure is log-linear, with a month x female
+# Generate an outcome. The mean structure is log-linear, with a month x female
 # interaction.
 monthx = sin(2*pi*d)
 yearx = d / 3
