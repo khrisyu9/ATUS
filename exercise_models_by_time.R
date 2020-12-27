@@ -262,10 +262,15 @@ model1.data = model1.data %>%
 ###############################################################################
 
 ########################whole dataset#######################################################
-ggplot(model1.data, aes(x=exer_duration,y=sleep_duration)) + geom_point() + geom_smooth(method="lm")
+# Sleep Duration Overall
+model1.data.sub1 = subset(model1.data, primary.sleep=="primary sleep")
+model1.data.sub1 = subset(model1.data.sub, start > as.POSIXct(strptime("18:00:00",format = "%H:%M:%S")))
+model1.data.sub1 = subset(model1.data.sub, days == "Weekday")
+#data visualization
+ggplot(model1.data.sub1, aes(x=exer_duration,y=sleep_duration)) + geom_point() + geom_smooth(method="lm")
 # Build the general quantile model
 qs <- 1:9/10
-quantile.model.general <- rq(sleep_duration ~ exer_duration + tesex*age.c, weight = final.weight.b, data = model1.data, tau = qs)
+quantile.model.general <- rq(sleep_duration ~ exer_duration + tesex*age.c, weight = final.weight.b, data = model1.data.sub1, tau = qs)
 #summary(quantile.model.general)
 coef(quantile.model.general)
 plot(summary(quantile.model.general), parm="exer_duration")
@@ -276,21 +281,21 @@ plot(summary(quantile.model.general), parm="exer_duration")
 
 # only exercise time as predictor
 qs <- 1:9/10
-quantile.model.exercise <- rq(sleep_duration ~ exer_duration, weight = final.weight.b, data = model1.data, tau = qs)
+quantile.model.exercise <- rq(sleep_duration ~ exer_duration, weight = final.weight.b, data = model1.data.sub1, tau = qs)
 #summary(quantile.model.exercise)
 coef(quantile.model.exercise)
 plot(summary(quantile.model.exercise), parm="exer_duration")
 
-ggplot(model1.data.sub, aes(exer_duration,sleep_duration)) + 
+ggplot(model1.data.sub1, aes(exer_duration,sleep_duration)) + 
   geom_point() + 
   geom_abline(intercept=coef(quantile.model.exercise)[1,1], slope=coef(quantile.model.exercise)[2,1], color = "blue") +
   geom_abline(intercept=coef(quantile.model.exercise)[1,9], slope=coef(quantile.model.exercise)[2,9], color = "grey")
 
 ##########################Use exer_duration90 below instead################################
-ggplot(model1.data.sub, aes(exer_duration90,sleep_duration)) + geom_point() + geom_smooth(method="lm")
+ggplot(model1.data.sub1, aes(exer_duration90,sleep_duration)) + geom_point() + geom_smooth(method="lm")
 # Build the general quantile model
 qs <- 1:9/10
-quantile.model90.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data, tau = qs)
+quantile.model90.general <- rq(sleep_duration ~ exer_duration90 + tesex*age.c, weight = final.weight.b, data = model1.data.sub1, tau = qs)
 #summary(quantile.model90.general)
 coef(quantile.model90.general)
 plot(summary(quantile.model90.general), parm="exer_duration90")
@@ -298,12 +303,12 @@ plot(summary(quantile.model90.general), parm="exer_duration90")
 
 # only exercise time as predictor
 qs <- 1:9/10
-quantile.model90.exercise <- rq(sleep_duration ~ exer_duration90, weight = final.weight.b, data = model1.data, tau = qs)
+quantile.model90.exercise <- rq(sleep_duration ~ exer_duration90, weight = final.weight.b, data = model1.data.sub1, tau = qs)
 #summary(quantile.model90.exercise)
 coef(quantile.model90.exercise)
 plot(summary(quantile.model90.exercise), parm="exer_duration90")
 
-ggplot(model1.data.sub, aes(exer_duration90,sleep_duration)) + 
+ggplot(model1.data.sub1, aes(exer_duration90,sleep_duration)) + 
   geom_point() + 
   geom_abline(intercept=coef(quantile.model90.exercise)[1,1], slope=coef(quantile.model90.exercise)[2,1], color = "blue") +
   geom_abline(intercept=coef(quantile.model90.exercise)[1,9], slope=coef(quantile.model90.exercise)[2,9], color = "grey")
